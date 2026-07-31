@@ -430,7 +430,6 @@ phase "Build unified Java project"
 build_java
 
 # --- Success ---
-trap - EXIT
 echo ""
 echo "===== BUILD SUCCESS =====
 "
