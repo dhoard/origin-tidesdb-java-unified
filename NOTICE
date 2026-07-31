@@ -1,0 +1,39 @@
+tidesdb-java-unified
+Copyright (C) TidesDB
+
+This product includes software developed by TidesDB (https://github.com/tidesdb).
+
+---
+
+TidesDB
+Copyright (C) TidesDB
+Licensed under the Mozilla Public License 2.0 (MPL-2.0).
+https://github.com/tidesdb/tidesdb
+
+---
+
+tidesdb-java
+Copyright (C) TidesDB
+Licensed under the Mozilla Public License 2.0 (MPL-2.0).
+https://github.com/tidesdb/tidesdb-java
+
+---
+
+zstd
+Copyright (C) Meta Platforms, Inc. and affiliates.
+Licensed under the BSD 3-Clause License.
+https://github.com/facebook/zstd
+
+---
+
+LZ4
+Copyright (C) Yann Collet and contributors.
+Licensed under the BSD 2-Clause License.
+https://github.com/lz4/lz4
+
+---
+
+Snappy
+Copyright (C) Google LLC and contributors.
+Licensed under the Apache License 2.0.
+https://github.com/google/snappy

@@ -1,0 +1,283 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.tidesdb</groupId>
+    <artifactId>tidesdb-java-unified</artifactId>
+    <version>0.1.0</version>
+    <packaging>jar</packaging>
+
+    <name>TidesDB Java Unified</name>
+    <description>
+        TidesDB Java binding with embedded native JNI library for the current
+        platform. No separate native installation required.
+    </description>
+    <url>https://github.com/tidesdb/tidesdb-java-unified</url>
+
+    <properties>
+        <java.version>11</java.version>
+        <maven.compiler.release>11</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
+        <!-- Dependency versions -->
+        <assertj.version>3.27.7</assertj.version>
+        <junit.version>5.14.4</junit.version>
+
+        <!-- Plugin versions -->
+        <compiler-plugin.version>3.15.0</compiler-plugin.version>
+        <google-java-format.version>1.24.0</google-java-format.version>
+        <enforcer-plugin.version>3.6.3</enforcer-plugin.version>
+        <jar-plugin.version>3.5.0</jar-plugin.version>
+        <javadoc-plugin.version>3.12.0</javadoc-plugin.version>
+        <shade-plugin.version>3.6.1</shade-plugin.version>
+        <source-plugin.version>3.4.0</source-plugin.version>
+        <spotless.version>3.8.0</spotless.version>
+        <surefire-plugin.version>3.5.6</surefire-plugin.version>
+        <versions-maven-plugin.version>2.21.0</versions-maven-plugin.version>
+
+        <!-- Default empty; overridden in jdk22+ profile. -->
+        <surefire.argLine></surefire.argLine>
+    </properties>
+
+    <dependencies>
+        <!-- Built from the pinned clone by ./build.sh and resolved from its isolated repository. -->
+        <dependency>
+            <groupId>com.tidesdb</groupId>
+            <artifactId>tidesdb-java</artifactId>
+            <version>0.8.3</version>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <version>${assertj.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <resources>
+            <resource>
+                <directory>${project.basedir}/build/generated-resources</directory>
+            </resource>
+            <resource>
+                <directory>${project.basedir}/LICENSES</directory>
+                <targetPath>META-INF</targetPath>
+            </resource>
+            <resource>
+                <directory>${project.basedir}</directory>
+                <includes>
+                    <include>LICENSE</include>
+                    <include>NOTICE</include>
+                </includes>
+                <targetPath>META-INF</targetPath>
+            </resource>
+        </resources>
+        <plugins>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>versions-maven-plugin</artifactId>
+                <version>${versions-maven-plugin.version}</version>
+                <configuration>
+                    <rulesUri>file://${maven.multiModuleProjectDirectory}/versions-rules.xml</rulesUri>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>${enforcer-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>enforce-maven-version</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireMavenVersion>
+                                    <version>[3.9.16,)</version>
+                                </requireMavenVersion>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- Spotless: Palantir Java Format, bound early -->
+            <plugin>
+                <groupId>com.diffplug.spotless</groupId>
+                <artifactId>spotless-maven-plugin</artifactId>
+                <version>${spotless.version}</version>
+                <configuration>
+                    <java>
+                        <googleJavaFormat>
+                            <version>${google-java-format.version}</version>
+                        </googleJavaFormat>
+                    </java>
+                </configuration>
+                <executions />
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>${compiler-plugin.version}</version>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>${surefire-plugin.version}</version>
+                <configuration>
+                    <argLine>${surefire.argLine}</argLine>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>${shade-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <createDependencyReducedPom>true</createDependencyReducedPom>
+                            <useDependencyReducedPomInJar>true</useDependencyReducedPomInJar>
+                            <filters>
+                                <filter>
+                                    <artifact>com.tidesdb:tidesdb-java</artifact>
+                                    <excludes>
+                                        <!-- This project owns the embedded-library loader. -->
+                                        <exclude>com/tidesdb/NativeLibrary.class</exclude>
+                                        <exclude>com/tidesdb/NativeLibrary.java</exclude>
+                                        <exclude>META-INF/MANIFEST.MF</exclude>
+                                        <exclude>META-INF/maven/**</exclude>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.IncludeResourceTransformer">
+                                    <resource>module-info.class</resource>
+                                    <file>${project.build.directory}/module-classes/module-info.class</file>
+                                </transformer>
+                            </transformers>
+
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <version>${source-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>attach-sources</id>
+                        <goals>
+                            <goal>jar-no-fork</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>${javadoc-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>attach-javadocs</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <doclint>none</doclint>
+                    <quiet>true</quiet>
+                    <sourcepath>${project.basedir}/src/main/java</sourcepath>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>${jar-plugin.version}</version>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+                        </manifest>
+                        <manifestEntries>
+                            <TidesDB-Version>9.3.13</TidesDB-Version>
+                            <TidesDB-Java-Version>0.8.3</TidesDB-Java-Version>
+                            <TidesDB-Unified-Version>0.1.0</TidesDB-Unified-Version>
+                            <X-TidesDB-Platform>linux-x86_64</X-TidesDB-Platform>
+                        </manifestEntries>
+                    </archive>
+                </configuration>
+            </plugin>
+
+            <!--
+              Compile module-info.java after the main compile so
+              javac can reference the project class files via
+              the patch-module flag.
+            -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.3.0</version>
+                <executions>
+                    <execution>
+                        <id>compile-module-info</id>
+                        <phase>process-classes</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>javac</executable>
+                            <arguments>
+                                <argument>--release</argument>
+                                <argument>11</argument>
+                                <argument>-d</argument>
+                                <argument>${project.build.directory}/module-classes</argument>
+                                <argument>--patch-module</argument>
+                                <argument>com.tidesdb=${project.build.outputDirectory}</argument>
+                                <argument>${project.basedir}/src/main/module/module-info.java</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+    <profiles>
+        <profile>
+            <id>jdk22+</id>
+            <activation>
+                <jdk>[22,)</jdk>
+            </activation>
+            <properties>
+                <surefire.argLine>--enable-native-access=ALL-UNNAMED</surefire.argLine>
+            </properties>
+        </profile>
+    </profiles>
+
+</project>
