@@ -1,10 +1,10 @@
-name: build
+name: Build
 
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
-    branches: [main]
+    branches: [master]
 
 jobs:
   build:
@@ -24,12 +24,5 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cmake ninja-build gcc g++ binutils curl tar python3
 
-      - name: Build
+      - name: Build Java artifact
         run: bash ./build.sh
-
-      - name: Upload dist artifacts
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
-        with:
-          name: tidesdb-java-unified-linux-x86_64
-          path: dist/
-          retention-days: 7
