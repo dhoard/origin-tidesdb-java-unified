@@ -1,12 +1,12 @@
 # tidesdb-java-unified
 
-A self-contained Java binding for [TidesDB](https://github.com/tidesdb/tidesdb). The generated JAR embeds the TidesDB core engine (`libtidesdb.so`) together with its JNI bridge (`libtidesdb_jni.so`) and statically-linked compression dependencies, so applications do not need a separate TidesDB installation or a custom `java.library.path`.
+A self-contained Java binding for [TidesDB](https://github.com/tidesdb/tidesdb). The generated JAR embeds the TidesDB core engine (`libtidesdb.so`) together with its JNI bridge (`libtidesdb_jni.so`) and statically-linked compression dependencies (zstd, LZ4, Snappy), so applications do not need a separate TidesDB installation or a custom `java.library.path`.
 
-> **Current platform:** Linux x86-64 with glibc. Other operating systems and architectures are not yet supported.
+> **Current platform:** Linux x86-64 with glibc. The preflight check in `build-dependencies.sh` enforces this; other operating systems and architectures are not yet supported.
 
-## Upstream configuration
+## Dependency configuration
 
-All upstream sources are configured in [`upstream.properties`](upstream.properties) using a branch + tag model:
+All dependency sources are configured in [`dependencies.properties`](dependencies.properties) using a branch + tag model:
 
 ```properties
 tidesdb.repo=https://github.com/tidesdb/tidesdb.git
@@ -24,7 +24,7 @@ tidesdb-java.tag=v0.8.3
 | `.branch` | Branch to clone |
 | `.tag` | Tag to checkout (empty = latest on branch) |
 
-To pin a specific release, set the `.tag` value for the relevant component.
+To pin a specific release, set the `.tag` value for the relevant component. CI and local builds always clone the pinned commit, so a build is reproducible as long as the pins are unchanged.
 
 | Component | Branch | Pinned Tag |
 |---|---|---|
@@ -36,17 +36,53 @@ To pin a specific release, set the `.tag` value for the relevant component.
 
 ## Build
 
-The complete build has one entry point:
+The build has a single entry point:
 
 ```bash
 ./build.sh
 ```
 
-Run it on Linux x86-64 with at least 2 GB of free disk space. It requires:
+`./build.sh` runs `./build-dependencies.sh` (builds the pinned native dependencies) and then `./mvnw clean install` (builds and installs the unified JAR).
+
+The whole build requires network access to GitHub (to clone the pinned upstream sources) and Maven Central (for the Java toolchain). On success, the unified JAR is installed into the local Maven repository.
+
+### What `./build-dependencies.sh` does
+
+`./build.sh` calls this script first. It performs the following steps:
+
+1. **Preflight** — validates the host (Linux x86-64) and the required toolchain, and checks for at least 2 GB of free disk space.
+2. **Clean** — removes any previous `./build` output and any leftover `./workspace` from an interrupted run.
+3. **Clone** — clones the pinned upstream sources (TidesDB, tidesdb-java, zstd, LZ4, Snappy) into `./workspace` and checks out the pinned tags.
+4. **Compression** — builds zstd, LZ4, and Snappy as static, position-independent archives.
+5. **TidesDB core** — builds `libtidesdb.so` as a shared library with the compression libraries statically linked in (S3 and sanitizers disabled).
+6. **JNI bridge** — builds `libtidesdb_jni.so` from the *unmodified* upstream `tidesdb-java` JNI sources, linked against the freshly built `libtidesdb.so`.
+7. **Verify** — audits both libraries with `ldd` and `readelf`: no forbidden dynamic dependencies (zstd, LZ4, Snappy, curl, OpenSSL, or the optional S3 implementation) and no suspicious RPATH/RUNPATH entries.
+8. **Upstream Java artifact** — builds the pinned `tidesdb-java` sources with their own Maven wrapper (`-DskipTests`) and installs the artifact into the local Maven repository; the clone is checked to remain unmodified.
+9. **Copy** — copies the two `.so` files into `build/generated-resources/native/linux-x86_64/`, where the Maven build picks them up.
+
+All clone/build work happens under `./workspace`, which is emptied on both success and failure. `./build` is created and cleaned before `./workspace` so stale generated resources never survive a run.
+
+### What `./mvnw clean install` does
+
+The Maven phase compiles `NativeLibrary`, compiles the `module-info` descriptor, runs the unit and integration tests, and shades the upstream `tidesdb-java` API classes into a single JAR along with the embedded native libraries, the project `LICENSE`, and `NOTICE`. This project's own `NativeLibrary` implementation replaces the upstream one in the shaded JAR.
+
+This produces the unified JAR and related artifacts under `target/`:
+
+```text
+target/
+├── tidesdb-java-unified-0.1.0.jar
+├── tidesdb-java-unified-0.1.0-sources.jar
+├── tidesdb-java-unified-0.1.0-javadoc.jar
+└── original-tidesdb-java-unified-0.1.0.jar
+```
+
+### Requirements
+
+Run on Linux x86-64 with at least 2 GB of free disk space. The preflight check requires:
 
 - Bash
 - Git
-- CMake 3.25 or later
+- CMake 3.25 or later (required by TidesDB)
 - Ninja
 - GCC and G++
 - GNU binutils (`ld`, `ar`, `ranlib`, and `readelf`)
@@ -62,41 +98,25 @@ sudo apt-get install -y cmake ninja-build gcc g++ binutils curl file tar
 
 Install a JDK 11 or later separately and ensure `java`, `javac`, and `jar` resolve from `PATH`.
 
-The build performs the following steps:
+### Output libraries
 
-1. validates the host and toolchain;
-2. clones all upstream projects at configured branch/tag;
-3. builds static zstd, LZ4, and Snappy compression libraries;
-4. builds TidesDB as a shared library (`libtidesdb.so`) with statically-linked compression;
-5. compiles the unchanged upstream JNI source and links it into `libtidesdb_jni.so` against the built TidesDB;
-6. audits the native libraries for forbidden dynamic dependencies;
-7. builds the pinned `tidesdb-java` Java artifact without modifying its source;
-8. copies native libraries into the generated resources and builds the unified Java artifact;
-9. runs the standalone example against the packaged JAR using an isolated Maven repository.
-
-The script uses a temporary directory under `/tmp` for all build work and requires network access to GitHub and Maven Central.
-
-## Build outputs
-
-A successful build creates the unified JAR and related artifacts under `target/`:
+The native dependency phase (`build-dependencies.sh`, invoked by `./build.sh`) leaves the native libraries at:
 
 ```text
-target/
-├── tidesdb-java-unified-0.1.0.jar
-├── tidesdb-java-unified-0.1.0-sources.jar
-├── tidesdb-java-unified-0.1.0-javadoc.jar
-└── original-tidesdb-java-unified-0.1.0.jar
-```
-
-Native libraries are also copied to `libs/` for local inspection:
-
-```text
-libs/
+build/generated-resources/native/linux-x86_64/
 ├── libtidesdb.so
 └── libtidesdb_jni.so
 ```
 
-The JAR is installed into the local Maven repository by `./mvnw clean install`.
+These are packaged into the JAR under `/native/linux-x86_64/`.
+
+### Verification
+
+After the full build, run the checked-in example:
+
+```bash
+./mvnw -q -f examples/basic/pom.xml verify
+```
 
 ## Use from Maven
 
@@ -183,6 +203,8 @@ The `tidesdb-java-unified` JAR ships with a `module-info.class` (module name `co
 
 For most users, the JAR sits on the class path, so `ALL-UNNAMED` is the right choice. If you place the JAR on the module path, the more specific `com.tidesdb` flag applies.
 
+This project's own test suite handles this automatically: a `jdk22+` Maven profile sets `--enable-native-access=ALL-UNNAMED` in Surefire, and the example runs with the flag via the Exec plugin.
+
 > **Future direction:** If the JDK blocks unrestricted `System.load()` entirely, the planned migration is to the [Foreign Function & Memory API](https://openjdk.org/jeps/454) (JEP 454), which replaces JNI and provides its own access-control mechanism.
 
 ## Example
@@ -202,12 +224,15 @@ A successful run exits with code 0 (no output by default).
 Production sources and tests are checked in:
 
 ```text
-src/main/java/com/tidesdb/NativeLibrary.java     unified embedded-native loader
-examples/basic/                                   standalone packaged-JAR acceptance test
-cmake/CMakeLists.txt                              native build definition
+src/main/java/com/tidesdb/NativeLibrary.java   unified embedded-native loader
+src/main/module/module-info.java               JPMS descriptor (module com.tidesdb)
+src/test/java/com/tidesdb/                     loader unit + packaged-JAR integration tests
+examples/basic/                                standalone packaged-JAR acceptance test
+build-dependencies.sh                          native dependency build
+build.sh                                       full build entry point
 ```
 
-The Java API comes from the upstream `tidesdb-java` artifact built from a pinned clone. `NativeLibrary.java` is maintained by this project to provide deterministic embedded-native extraction. The cloned upstream Java and JNI source is never patched, copied into the source tree, or formatted by this build.
+The Java API comes from the upstream `tidesdb-java` artifact built from a pinned clone. `NativeLibrary.java` is maintained by this project to provide deterministic embedded-native extraction. The cloned upstream Java and JNI source is never patched, copied into the source tree, or formatted by this build. The `cmake/` directory contains a reference native build definition only; the scripts build from the upstream sources' own CMake files.
 
 To apply Java formatting:
 
@@ -236,10 +261,20 @@ Normal Linux system dependencies such as glibc are permitted. The build enforces
 
 ## CI
 
-GitHub Actions (`.github/workflows/build.yaml` and `manual-build.yaml`) runs `./build.sh` for pushes and pull requests targeting `main`, then retains `dist/` as a workflow artifact. CI uses SHA-pinned official actions and Corretto JDK 11.
+GitHub Actions (`.github/workflows/build.yaml` and `manual-build.yaml`) runs `bash ./build.sh` on `ubuntu-22.04` for pushes and pull requests targeting `master` (`manual-build.yaml` is a manual `workflow_dispatch` trigger). CI uses SHA-pinned official actions and Corretto JDK 11. It installs the build tools with `apt-get` and then runs the full build; no artifacts are uploaded.
 
-By default CI pulls the latest commit on each configured branch. To pin CI to specific versions, set the `.tag` values in `upstream.properties`.
+By default CI pulls the latest commit on each configured branch. To pin CI to specific versions, set the `.tag` values in `dependencies.properties`.
 
 ## Licensing
 
-TidesDB and tidesdb-java are distributed under the Mozilla Public License 2.0. This project preserves their notices and includes license information for bundled native dependencies in [`LICENSES`](LICENSES) and each generated `dist/` directory.
+This project is licensed under the Apache License 2.0 (see [`LICENSE`](LICENSE)). It embeds and redistributes upstream components, each under its own license:
+
+| Component | License |
+|---|---|
+| TidesDB | Mozilla Public License 2.0 (MPL-2.0) |
+| tidesdb-java | Mozilla Public License 2.0 (MPL-2.0) |
+| zstd | BSD 3-Clause |
+| LZ4 | BSD 2-Clause |
+| Snappy | Apache License 2.0 |
+
+The `NOTICE` file lists these components and licenses, and both `LICENSE` and `NOTICE` are bundled into the generated JAR under `META-INF/`.

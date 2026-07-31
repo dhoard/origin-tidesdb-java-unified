@@ -49,7 +49,10 @@ set(TIDESDB_LZ4_TARGET lz4_static CACHE STRING "")
 set(TIDESDB_SNAPPY_TARGET snappy CACHE STRING "")
 
 # Build TidesDB as a shared library so libtidesdb.so is produced.
-set(BUILD_SHARED_LIBS ON CACHE BOOL "")
+# This must be a normal (non-cache) assignment: the compression builds above
+# pinned BUILD_SHARED_LIBS=OFF in the cache, and a CACHE assignment would not
+# override it. Scope it to the TidesDB subdirectory so snappy/lz4 stay static.
+set(BUILD_SHARED_LIBS ON)
 
 add_subdirectory(${TIDESDB_SOURCE_DIR} tidesdb_build)
 
@@ -60,4 +63,4 @@ add_subdirectory(${TIDESDB_SOURCE_DIR} tidesdb_build)
 # ── Install target ───────────────────────────────────────────────────────────
 # The compression libs are already installed by the individual builds above
 # (if CMAKE_INSTALL_PREFIX is set).  TidesDB installs via its own install()
-# rules.  This project's build.sh orchestrates the install steps.
+# rules.  This project's build-dependencies.sh orchestrates the install steps.

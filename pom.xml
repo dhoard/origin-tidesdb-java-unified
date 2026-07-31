@@ -44,7 +44,7 @@
     </properties>
 
     <dependencies>
-        <!-- Built from the pinned clone by ./build.sh and resolved from its isolated repository. -->
+        <!-- Built from the pinned clone by ./build-dependencies.sh and resolved from its isolated repository. -->
         <dependency>
             <groupId>com.tidesdb</groupId>
             <artifactId>tidesdb-java</artifactId>
