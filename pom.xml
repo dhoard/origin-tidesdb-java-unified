@@ -229,7 +229,7 @@
                             <TidesDB-Version>9.3.13</TidesDB-Version>
                             <TidesDB-Java-Version>0.8.3</TidesDB-Java-Version>
                             <TidesDB-Unified-Version>0.1.0</TidesDB-Unified-Version>
-                            <X-TidesDB-Platform>linux-x86_64</X-TidesDB-Platform>
+                            <X-TidesDB-Platform>current-build-platform</X-TidesDB-Platform>
                         </manifestEntries>
                     </archive>
                 </configuration>

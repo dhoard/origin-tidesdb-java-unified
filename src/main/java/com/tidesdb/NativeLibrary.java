@@ -56,8 +56,18 @@ public final class NativeLibrary {
   private static final String CACHE_DIR_PREFIX = "tidesdb-java-unified";
   private static final String NATIVE_RESOURCE_PREFIX = "/native/";
 
-  /** Libraries to load, in dependency order (TidesDB core before JNI bridge). */
-  private static final String[] NATIVE_LIBS = {"libtidesdb.so", "libtidesdb_jni.so"};
+  /** Returns libraries in dependency order (TidesDB core before JNI bridge). */
+  private static String[] nativeLibraries(String os) {
+    switch (os) {
+      case "linux":
+        return new String[] {"libtidesdb.so", "libtidesdb_jni.so"};
+      case "macos":
+        return new String[] {"libtidesdb.dylib", "libtidesdb_jni.dylib"};
+      default:
+        throw new UnsatisfiedLinkError(
+            "No embedded native library set is available for operating system: " + os);
+    }
+  }
 
   private static volatile Boolean loaded;
   private static final ReentrantLock LOAD_LOCK = new ReentrantLock();
@@ -109,8 +119,9 @@ public final class NativeLibrary {
     String classifier = os + "-" + arch;
 
     // 3. Read all embedded libraries and compute their SHA-256 hashes
-    List<LibEntry> entries = new ArrayList<>(NATIVE_LIBS.length);
-    for (String libName : NATIVE_LIBS) {
+    String[] nativeLibs = nativeLibraries(os);
+    List<LibEntry> entries = new ArrayList<>(nativeLibs.length);
+    for (String libName : nativeLibs) {
       String resourcePath = NATIVE_RESOURCE_PREFIX + classifier + "/" + libName;
       byte[] libBytes;
       try (InputStream in = NativeLibrary.class.getResourceAsStream(resourcePath)) {
